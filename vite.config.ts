@@ -46,6 +46,8 @@ export default defineConfig({
       },
     }),
   ],
+  // Lets phones reach a local game over https via `cloudflared tunnel --url http://localhost:5173`.
+  server: { allowedHosts: ['.trycloudflare.com'] },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

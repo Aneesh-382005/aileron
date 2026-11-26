@@ -17,7 +17,9 @@
  * - Voice: second person; headlines under 7 words; never starts with "we"
  */
 
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Check, Copy } from 'lucide-react'
 import { Seo } from '../components/Seo'
 import { seo } from '../seo'
 
@@ -38,6 +40,13 @@ const plane = (fill: string) => (
   </g>
 )
 
+const REPO = 'https://github.com/Aneesh-382005/aileron'
+
+const runPrompt = `Help me host the Aileron party game from this computer. The code is at ${REPO} and the README says how to run it.
+Get it running here, then make it reachable from phones in the room over https, since phones only share their tilt over https. A free tunnel like cloudflared is fine.
+When it's ready, give me the link to open on the big screen. Players scan the QR code on it to join.
+If I need to sign in to anything, tell me what to run. Don't deploy anything or push to git.`
+
 const sampleRuns = [
   ['3120', '24', 'Priya, Sam, Lee, Ana'],
   ['2860', '22', 'Tomás, Jo'],
@@ -45,6 +54,7 @@ const sampleRuns = [
 ]
 
 export default function Landing() {
+  const [copied, setCopied] = useState(false)
   return (
     <>
       <Seo {...seo} path="/" />
@@ -169,6 +179,28 @@ export default function Landing() {
           </div>
         </section>
 
+        <section className="border-t border-border">
+          <div className="mx-auto grid max-w-6xl items-start gap-12 px-6 py-20 lg:grid-cols-[1fr_1.4fr]">
+            <div>
+              <h2 className="font-display text-4xl font-bold tracking-tight">Run it on your own computer.</h2>
+              <p className="mt-4 max-w-md text-muted-foreground">
+                Paste this into Claude Code, Codex or Cursor. Your agent sets up a private copy you host from your laptop.
+              </p>
+              <a href={REPO} className="mt-6 inline-block text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Source on GitHub</a>
+            </div>
+            <div className="relative rounded-xl border border-border bg-card">
+              <button
+                onClick={() => navigator.clipboard.writeText(runPrompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })}
+                className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied' : 'Copy prompt'}
+              </button>
+              <pre className="overflow-x-auto whitespace-pre-wrap p-6 pt-14 font-mono text-sm leading-relaxed text-muted-foreground">{runPrompt}</pre>
+            </div>
+          </div>
+        </section>
+
         <footer className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-6 py-8 text-sm text-muted-foreground">
           <span className="font-display font-bold tracking-[0.3em] text-foreground">AILERON</span>
           <span>Built on DeepSpace</span>
@@ -176,6 +208,7 @@ export default function Landing() {
           <a href="/host" className="hover:text-foreground">Host</a>
           <a href="/r" className="hover:text-foreground">Join</a>
           <Link to="/me" className="hover:text-foreground">Venues</Link>
+          <a href={REPO} className="hover:text-foreground">GitHub</a>
         </footer>
       </div>
     </>

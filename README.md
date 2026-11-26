@@ -48,3 +48,12 @@ npm test                   # game and controller tests (room tests too, if the d
 npm run test:app           # browser tests, needs 2 test accounts
 npm run load               # load test
 ```
+
+## Run it on your own computer
+
+1. Clone this repo and run `npm install`.
+2. Run `npx deepspace dev start`. If it asks you to sign in, run `npx deepspace auth login`. If it says the app isn't yours, run `npx deepspace app init --new-id` and start again.
+3. Phones only share tilt over https, so open a tunnel: `cloudflared tunnel --url http://localhost:5173`.
+4. Open the https address it prints, add `/host`, and put it on the big screen.
+
+Or paste the prompt from the "Run it on your own computer" section of the site into any coding agent.

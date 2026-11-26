@@ -20,6 +20,7 @@ const landing = await open('/')
 await check('landing', () => expectOk(landing, 'h1'))
 const hrefs = [...new Set(await landing.locator('a').evaluateAll((as) => as.map((a) => a.getAttribute('href'))))]
 for (const h of hrefs) await check(`landing link ${h}`, async () => {
+  if (/^https?:/.test(h)) { const r = await fetch(h, { method: 'HEAD' }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return }
   const p = await open(h)
   await expectOk(p, h.startsWith('/r') ? '#join' : h === '/host' ? '#card' : 'h1, [data-testid="app-navigation"]')
   await p.close()
