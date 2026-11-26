@@ -16,7 +16,7 @@ const TURN = [22, 0.55], CLIMB = [18, 0.8]                 // [degrees, seconds 
 const CURSOR = `addEventListener('DOMContentLoaded', () => {
   const c = document.createElement('div')
   c.style.cssText = 'position:fixed;z-index:99999;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:3px solid #fff;background:#ffb02088;pointer-events:none;transition:transform .1s;left:-50px;top:-50px'
-  document.body.append(c)
+  document.body.append(c); window.__cursor = c
   addEventListener('mousemove', (e) => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px' }, true)
   addEventListener('mousedown', () => { c.style.transform = 'scale(.7)' }, true)
   addEventListener('mouseup', () => { c.style.transform = '' }, true)
@@ -87,6 +87,7 @@ if (!process.argv.includes('--edit')) {
   await join('Kai')
   await host.waitForTimeout(2500)
   await click(host.locator('#start')); mark('play')
+  await host.evaluate(() => window.__cursor.remove())
   const fly = await phone.evaluate(() => { window.__fly = performance.now(); document.getElementById('fire').dispatchEvent(new PointerEvent('pointerdown')); return performance.timeOrigin + window.__fly })
   marks.fly = (fly - t0) / 1000
 
@@ -153,6 +154,21 @@ const title = (big, small) => `<div style="height:100%;display:flex;flex-directi
   <div style="font:700 38px 'Space Grotesk';letter-spacing:.35em;color:#ffb020">AILERON</div>
   <div style="font:700 116px/1.05 'Space Grotesk';margin-top:26px;max-width:1400px">${big}</div>
   <div style="font:400 40px Inter;color:#9aa7c2;margin-top:34px">${small}</div></div>`
+const ff = (...args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...args], { stdio: 'inherit' })
+// The thumbnail is cut at a full right turn (phone, dot and Maya's plane all bank the same way), the one where the yellow pair flies furthest right.
+const yellowAt = (t) => {
+  const px = execFileSync('ffmpeg', ['-v', 'error', '-ss', String(t - hostShift), '-i', `${RAW}/host.webm`, '-frames:v', '1', '-vf', 'crop=1920:980:0:100,scale=192:98', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
+  let [x, y, n] = [0, 0, 0]
+  for (let i = 0; i < 192 * 98; i++) if (px[i * 3] > 200 && px[i * 3 + 1] > 170 && px[i * 3 + 2] < 120) { x += i % 192; y += Math.floor(i / 192); n++ }
+  return { t, x: (x / n) * 10, y: (y / n) * 10 + 100, n }
+}
+const turns = Array.from({ length: 12 }, (_, k) => m.fly + TURN[1] * Math.PI * (2 * k + 0.5)).filter((t) => t > m.fly + 2 && t < m.crash - 1)
+const best = turns.map(yellowAt).filter((c) => c.n > 30).reduce((a, b) => (b.x > a.x ? b : a))
+ff('-ss', String(best.t - hostShift), '-i', `${RAW}/host.webm`, '-frames:v', '1', '-vf', 'crop=1920:980:0:100', `${RAW}/thumb-sky.png`)   // no score or room code
+ff('-ss', String(best.t - m.phoneStart - phoneShift), '-i', `${RAW}/phone.webm`, '-frames:v', '1', `${RAW}/thumb-phone.png`)
+// The sky may slide right into the left third: the dark gradient there hides the gap.
+const zoom = 1.15, bx = Math.min(560, Math.max(W - W * zoom, 1350 - best.x * zoom)), by = Math.min(0, Math.max(H - 980 * zoom, 380 - (best.y - 100) * zoom))
+const png = (f) => `data:image/png;base64,${readFileSync(f).toString('base64')}`
 const segs = [
   ['landing', m.landing, m.venue - 0.3, 'A big screen for the sky. Phones for planes.'],
   ['venue', m.venue, m.lobby - 0.2, 'Venues keep a hall of fame for your group'],
@@ -171,15 +187,20 @@ for (const [file, html, transparent] of [
   [`${RAW}/go.png`, `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:repeating-linear-gradient(100deg,#0b1220 0 60px,#111a2e 60px 64px)">
     <div style="font:700 220px 'Space Grotesk';letter-spacing:.08em;color:#ffb020;text-shadow:0 0 60px #ffb02066">TAKEOFF</div>
     <div style="font:600 40px Inter;letter-spacing:.4em;color:#9aa7c2;margin-top:10px">WAVE 1 INCOMING</div></div>`],
+  [`${OUT}/aileron-thumbnail.jpg`, `<div style="position:absolute;inset:0;background:url(${png(`${RAW}/thumb-sky.png`)}) ${bx}px ${by}px/${W * zoom}px auto no-repeat"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,#0b1220 ${bx}px,#0b122000 ${bx + 280}px),linear-gradient(90deg,#0b1220f2 0%,#0b1220d0 34%,#0b122000 58%)"></div>
+    <div style="position:absolute;left:96px;top:138px;width:960px">
+      <div style="font:700 51px 'Space Grotesk';letter-spacing:.38em;color:#ffb020">AILERON</div>
+      <div style="font:700 156px/0.98 'Space Grotesk';margin-top:33px;text-shadow:0 9px 45px #0008">Your phone is the joystick</div></div>
+    <div style="position:absolute;right:110px;bottom:90px;perspective:2100px"><img src="${png(`${RAW}/thumb-phone.png`)}" style="display:block;width:600px;border:18px solid #05080f;outline:4px solid #ffb020;border-radius:39px;box-shadow:45px 60px 90px #000a;transform:rotateY(-22deg) rotateX(8deg) rotateZ(${TURN[0] * 0.5}deg)"></div>`],
   ...segs.map(([k, , , text]) => [`${RAW}/cap-${k}.png`, `<div style="position:absolute;left:60px;bottom:56px;padding:20px 32px;border-radius:20px;background:#0b1220e6;border:2px solid #243352;font:600 40px Inter">${text}</div>`, true]),
 ]) {
   await page.setContent(`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap"><body style="margin:0;width:${W}px;height:${H}px;background:${transparent ? 'transparent' : '#0b1220'};color:#f2f6ff;font-family:Inter">${html}</body>`)
   await page.waitForTimeout(600)
-  await page.screenshot({ path: file, omitBackground: !!transparent })
+  await page.screenshot({ path: file, ...(transparent && { omitBackground: true }), ...(file.endsWith('.jpg') && { quality: 90 }) })
 }
 await browser.close()
 
-const ff = (...args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...args], { stdio: 'inherit' })
 const enc = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-crf', '18', '-preset', 'slow']
 // Stills get a camera move: a slow push-in for the title, a punch-in for TAKEOFF.
 const still = (png, out, secs, zoom, fade) => ff('-loop', '1', '-framerate', '25', '-t', String(secs), '-i', png, '-vf',
@@ -220,4 +241,4 @@ chain.slice(1).forEach(([k, transition], i) => {
   last = `[x${i}]`; at += length(`${RAW}/s-${k}.mp4`) - d
 })
 ff(...chain.flatMap(([k]) => ['-i', `${RAW}/s-${k}.mp4`]), '-filter_complex', graph.slice(0, -1), '-map', last, ...enc, '-movflags', '+faststart', `${OUT}/aileron-demo.mp4`)
-console.log(`${OUT}/aileron-demo.mp4`)
+console.log(`${OUT}/aileron-demo.mp4 and ${OUT}/aileron-thumbnail.jpg`)
