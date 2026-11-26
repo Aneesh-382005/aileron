@@ -23,10 +23,13 @@ const CURSOR = `addEventListener('DOMContentLoaded', () => {
   addEventListener('mouseup', () => { c.style.transform = '' }, true)
 })`
 
-// The phone page gets a steady tilt: level until window.__fly, then a slow weave.
-const TILT = `setInterval(() => {
-  const t = performance.now() / 1000, fly = window.__fly
-  dispatchEvent(Object.assign(new Event('deviceorientation'), { alpha: 0, beta: 90 + (fly ? 7 * Math.sin(t / 1.7) : 0), gamma: fly ? 20 * Math.sin(t / 1.2) : 0 }))
+// The phone is held sideways like a wheel: still until window.__fly, then it turns 20 deg either way and gently climbs and dives.
+const TILT = `localStorage.setItem('ail.land', '1')
+setInterval(() => {
+  const D = Math.PI / 180, s = window.__fly ? (performance.now() - window.__fly) / 1000 : 0
+  const w = 20 * D * Math.sin(s / 1.2), p = (7 * Math.sin(s / 1.7) - 25) * D
+  const sx = -Math.sin(w) * Math.cos(p), sy = Math.cos(w) * Math.cos(p)
+  dispatchEvent(Object.assign(new Event('deviceorientation'), { alpha: 0, beta: Math.asin(-sx) / D, gamma: Math.atan2(-sy, Math.sin(p)) / D }))
 }, 50)`
 
 async function record() {
@@ -74,7 +77,7 @@ async function record() {
   }
   for (const name of ['Priya', 'Sam', 'Leo', 'Ana']) await join(name)
 
-  const phoneCtx = await gpu.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, recordVideo: { dir: `${RAW}/phone`, size: { width: 390, height: 844 } } })
+  const phoneCtx = await gpu.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, recordVideo: { dir: `${RAW}/phone`, size: { width: 844, height: 390 } } })
   await phoneCtx.grantPermissions(['accelerometer', 'gyroscope', 'magnetometer'], { origin: BASE })   // Chromium asks like iOS does
   const phone = await phoneCtx.newPage()
   marks.phoneStart = (Date.now() - t0) / 1000; console.log('phone', marks.phoneStart)
@@ -85,7 +88,8 @@ async function record() {
   await join('Kai')
   await host.waitForTimeout(2500)
   await click(host.locator('#start')); mark('play')
-  await phone.evaluate(() => { window.__fly = true; document.getElementById('fire').dispatchEvent(new PointerEvent('pointerdown')) })
+  const fly = await phone.evaluate(() => { window.__fly = performance.now(); document.getElementById('fire').dispatchEvent(new PointerEvent('pointerdown')); return performance.timeOrigin + window.__fly })
+  marks.fly = (fly - t0) / 1000
 
   let crash = false
   const pilot = setInterval(() => {
@@ -176,9 +180,21 @@ async function edit() {
     const dur = (b - a).toFixed(2)
     const inputs = ['-i', `${RAW}/host.webm`, '-i', `${RAW}/cap-${k}.png`]
     let graph = `[0:v]trim=start=${Math.max(0, a - hostShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS[v];[v][1:v]overlay=0:0[out]`
-    if (a >= m.phoneStart - 0.5 && b <= m.over + 8) {                                 // the phone sits in a frame at the right
+    if (a >= m.phoneStart - 0.5 && b <= m.over + 8) {
+      // The phone floats in 3D at the right, turned toward the sky, and moves with the same tilt TILT feeds it:
+      // wheel turn in ld(0), pitch in ld(1), a fixed yaw in ld(2), projected with a 1400 px focal length.
+      const s = `(in/25+${(a - m.fly).toFixed(2)})`, on = `gte(${s},0)`
+      const pre = `st(0,${on}*20*PI/180*sin(${s}/1.2));st(1,-0.2-${on}*7*PI/180*sin(${s}/1.7));st(2,-0.35)`
+      const corner = (X, Y) => {
+        const xy = `${pre};st(3,${X}*cos(ld(0))-(${Y})*sin(ld(0)));st(4,${X}*sin(ld(0))+(${Y})*cos(ld(0)));st(5,1400/(1400-ld(3)*sin(ld(2))+ld(4)*sin(ld(1))*cos(ld(2))))`
+        return [`'${xy};450+(ld(3)*cos(ld(2))+ld(4)*sin(ld(1))*sin(ld(2)))*ld(5)'`, `'${xy};450+ld(4)*cos(ld(1))*ld(5)'`]
+      }
+      const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = [corner(-450, -450), corner(450, -450), corner(-450, 450), corner(450, 450)]
       inputs.push('-i', `${RAW}/phone.webm`)
-      graph += `;[2:v]trim=start=${Math.max(0, a - m.phoneStart - phoneShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS,scale=-2:640:flags=lanczos,pad=iw+16:ih+16:8:8:color=0x243352[p];[out][p]overlay=W-w-56:(H-h)/2[pip]`
+      graph += `;[2:v]trim=start=${Math.max(0, a - m.phoneStart - phoneShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS,scale=600:-2:flags=lanczos,`
+        + `pad=iw+28:ih+28:14:14:color=0x05080f,pad=iw+4:ih+4:2:2:color=0x3a4a6b,format=rgba,pad=900:900:(ow-iw)/2:(oh-ih)/2:color=black@0,`
+        + `perspective=x0=${x0}:y0=${y0}:x1=${x1}:y1=${y1}:x2=${x2}:y2=${y2}:x3=${x3}:y3=${y3}:sense=destination:eval=frame,split[p][s];`
+        + `[s]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.5,boxblur=20[sh];[out][sh]overlay=W-800:130[o];[o][p]overlay=W-830:90[pip]`
     }
     ff(...inputs, '-filter_complex', graph, '-map', graph.endsWith('[pip]') ? '[pip]' : '[out]', ...enc, `${RAW}/s-${k}.mp4`)
   }
