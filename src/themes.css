@@ -1,0 +1,31 @@
+/* Dusk: the game's own sky. Navy for dim rooms and projectors, amber for the wing link, crew colours for planes. */
+[data-theme="dusk"] {
+  color-scheme: dark;
+  --color-background: #0b1220;
+  --color-foreground: #f2f6ff;
+  --color-card: #111a2e;
+  --color-card-foreground: #f2f6ff;
+  --color-popover: #111a2e;
+  --color-popover-foreground: #f2f6ff;
+  --color-primary: #ffb020;
+  --color-primary-foreground: #14100a;
+  --color-secondary: #16213a;
+  --color-secondary-foreground: #f2f6ff;
+  --color-muted: #16213a;
+  --color-muted-foreground: #9aa7c2;
+  --color-accent: #1c2a48;
+  --color-accent-foreground: #f2f6ff;
+  --color-destructive: #ff5d5d;
+  --color-destructive-foreground: #14100a;
+  --color-border: #243352;
+  --color-input: #243352;
+  --color-ring: #ffb020;
+  --color-shell: #0b1220;
+  --color-shell-panel: #111a2e;
+  --color-wing-a: #ff6b6b;
+  --color-wing-b: #4dd0e1;
+  --color-tracer: #7df9ff;
+  --color-enemy: #ff4d4d;
+  --radius: 0.75rem;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+}

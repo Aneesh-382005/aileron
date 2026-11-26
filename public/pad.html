@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap">
+<title>Aileron · fly</title>
+<style>
+  :root { --bg: #0b1220; --panel: #16213a; --fg: #eef3ff; --accent: #ffb020; --ok: #46e08a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 18px Inter, system-ui, sans-serif; }
+  body { box-shadow: inset 0 0 0 8px var(--tint, transparent); display: flex; flex-direction: column; gap: 14px; padding: max(16px, env(safe-area-inset-top)) 16px 16px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  input, button { font: inherit; padding: 14px; border-radius: 12px; border: 0; }
+  input { background: var(--panel); color: var(--fg); }
+  button { background: var(--accent); color: #111; font-weight: 700; }
+  button.ghost { background: var(--panel); color: var(--fg); font-weight: 500; padding: 10px 14px; font-size: 15px; }
+  h1 { margin: 0; font: 700 26px "Space Grotesk", Inter, sans-serif; letter-spacing: .25em; }
+  #join, #play { display: flex; flex-direction: column; gap: 14px; }
+  #play { display: none; flex: 1; min-height: 0; }
+  #top { display: flex; justify-content: space-between; align-items: center; }
+  #pill { background: var(--tint, var(--panel)); color: #111; border-radius: 999px; padding: 6px 14px; font-weight: 700; }
+  #hud { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+  .pip { display: inline-block; width: 12px; height: 8px; margin-right: 3px; border-radius: 2px; background: var(--ok); }
+  .pip.off { background: #ffffff30; }
+  #row { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+  @media (orientation: landscape) and (max-height: 520px) {
+    #join { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #join h1, #joinStatus { grid-column: 1 / -1; }
+    #row { flex-direction: row; }
+    body { padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); gap: 8px; }
+  }
+  #field { flex: 1; min-height: 0; background: var(--panel); border-radius: 20px; position: relative; }
+  #field::before, #field::after { content: ""; position: absolute; background: #ffffff20; }
+  #field::before { left: 50%; top: 8%; bottom: 8%; width: 2px; }
+  #field::after { top: 50%; left: 8%; right: 8%; height: 2px; }
+  #ball { width: 64px; height: 64px; border-radius: 50%; background: var(--tint, var(--accent)); position: absolute; left: calc(50% - 32px); top: calc(50% - 32px); }
+  #fire { flex: 1.3; min-height: 0; font-size: 40px; border-radius: 20px; background: var(--tint, #ff5d5d); color: #111; }
+  #fire.down { filter: brightness(1.3); }
+  #tools { display: flex; gap: 8px; flex-wrap: wrap; }
+  #wing { min-height: 1.3em; }
+  #wing.link { color: var(--accent); font-weight: 700; opacity: 1; }
+  .status { font-size: 14px; opacity: .75; min-height: 1.3em; }
+  #flash { position: fixed; inset: 0; background: #ff2d2d; opacity: 0; pointer-events: none; transition: opacity .35s; }
+  #flash.on { opacity: .55; transition: none; }
+  #tilt { position: fixed; inset: 0; background: var(--bg); display: none; flex-direction: column; gap: 18px; align-items: center; justify-content: center; text-align: center; padding: 32px; z-index: 5; }
+</style>
+
+<div id="join">
+  <h1>Aileron</h1>
+  <div class="status">Tilt your phone to fly. No app, no sign-up.</div>
+  <input id="room" placeholder="Room code" maxlength="4" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+  <input id="name" placeholder="Your name" maxlength="12" autocomplete="off">
+  <button id="go">Join</button>
+  <div id="joinStatus" class="status"></div>
+</div>
+
+<div id="play">
+  <div id="top"><div id="pill"></div><div id="hud"><span id="pips"></span><span id="score">0</span></div></div>
+  <div id="wing" class="status"></div>
+  <div id="row">
+    <div id="field"><div id="ball"></div></div>
+    <button id="fire">HOLD TO FIRE</button>
+  </div>
+  <div id="tools">
+    <button class="ghost" id="recenter">Recenter</button>
+    <button class="ghost" id="invR">Flip left/right</button>
+    <button class="ghost" id="invP">Flip up/down</button>
+    <button class="ghost" id="mode"></button>
+  </div>
+  <div id="status" class="status"></div>
+</div>
+<div id="flash"></div>
+<div id="tilt"><div id="tiltMsg"></div><button id="swap">Switch mode</button></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const ls = (k, v) => { try { return v == null ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch {} };   // storage can throw in private tabs
+
+// degrees away from "level" -> steering in [-1, 1]: 3 deg dead zone, full at 24 deg, gentle near the middle
+function tiltToAxis(deg) {
+  const m = clamp((Math.abs(deg) - 3) / 21, 0, 1);
+  return Math.sign(deg) * m ** 1.4;
+}
+
+let ws, joined = false, wantRoom = "", wantName = "", sensors = false, seen = false, last = null, zero = null;
+let flipR = ls("ail.flipR") === "1", flipP = ls("ail.flipP") === "1", land = ls("ail.land") === "1", sent = "", idle = 0;
+const D = Math.PI / 180, wrap = (d) => ((d + 540) % 360) - 180;
+const axes = { r: 0, p: 0 };
+let token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+try { token = sessionStorage.ailToken || (sessionStorage.ailToken = token); } catch {}
+
+$("room").value = (location.pathname.split("/")[2] || "").toUpperCase();
+$("name").value = ls("ail.name") || "";
+
+const showBall = () => {
+  $("ball").style.left = `calc(${50 + axes.r * 38}% - 32px)`;
+  $("ball").style.top = `calc(${50 - axes.p * 38}% - 32px)`;
+};
+const setPips = (h, max = 8) => { $("pips").innerHTML = Array.from({ length: max }, (_, i) => `<i class="pip${i < h ? "" : " off"}"></i>`).join(""); };
+setPips(8);
+
+const angle = () => (((screen.orientation?.angle ?? window.orientation ?? 0) % 360) + 360) % 360;
+const checkOverlay = () => {                              // ask for the other hold when the phone and the mode disagree
+  $("tilt").style.display = joined && sensors && land !== (angle() % 180 === 90) ? "flex" : "none";
+  $("tiltMsg").textContent = land ? "Turn your phone sideways (and allow auto-rotate) for landscape mode." : "Hold your phone upright (portrait), or switch to landscape mode.";
+};
+const setMode = () => {
+  zero = last = null;                                     // the old mode's reading means something else now
+  $("mode").textContent = land ? "Mode: landscape wheel" : "Mode: portrait tray";
+  checkOverlay();
+};
+$("mode").onclick = $("swap").onclick = () => { land = !land; ls("ail.land", land ? "1" : "0"); setMode(); };
+addEventListener("resize", checkOverlay);
+setMode();
+
+addEventListener("deviceorientation", (e) => {
+  if (e.gamma != null) seen = true;                     // browsers fire the first event at page load, and later ones only when the reading changes
+  if (!sensors || e.gamma == null || e.beta == null) return;
+  const ang = angle();
+  if (land) {
+    // wheel: where "up" points in the screen's own frame, so any phone and either landscape side reads the same
+    const bt = e.beta * D, gm = e.gamma * D;
+    const ux = -Math.sin(gm) * Math.cos(bt), uy = Math.sin(bt), uz = Math.cos(gm) * Math.cos(bt);
+    const [sx, sy] = ang === 90 ? [-uy, ux] : ang === 270 ? [uy, -ux] : ang === 180 ? [-ux, -uy] : [ux, uy];
+    last = { g: Math.atan2(-sx, sy) / D, b: Math.atan2(-uz, sy) / D };   // g: twist clockwise = right, b: top toward you = climb
+  } else last = { g: e.gamma, b: e.beta };                                // tray: lean right = right, top toward you = climb
+  if (!zero) zero = { ...last };
+  axes.r = tiltToAxis(wrap(last.g - zero.g)) * (flipR ? -1 : 1);
+  axes.p = tiltToAxis(wrap(last.b - zero.b)) * (flipP ? -1 : 1);
+  showBall();
+});
+
+function connect() {
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/game/${wantRoom}`);
+  ws.onopen = () => { sent = ""; ws.send(JSON.stringify({ t: "join", name: wantName, token })); };
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.t === "joined") {
+      joined = true; zero = null; checkOverlay();
+      document.documentElement.style.setProperty("--tint", "#" + m.color.toString(16).padStart(6, "0"));   // same colour as your plane on the big screen
+      $("join").style.display = "none"; $("play").style.display = "flex";
+      $("pill").textContent = `Crew ${m.crew}`;
+      $("status").textContent = sensors ? "Tilt to fly, hold FIRE to shoot. Tap Recenter if it drifts." : "No motion sensor found: drag in the box to steer.";
+    } else if (m.t === "hud") {
+      $("score").textContent = `${m.k} kills · ${m.sc}`; setPips(m.h, m.hm);
+      $("wing").className = "status" + (m.l || m.u ? " link" : "");
+      $("wing").textContent = (m.s === "lobby" ? "Waiting for the host to start. " : m.s === "over" ? "Game over: look at the big screen. " : "") +
+        (m.u ? (m.w ? `${m.w} dropped out: solo fast fire is on` : "Flying solo: fast fire is always on") : m.l ? `LINKED with ${m.w}: x2 points, faster fire` : `Wingmate ${m.w}: fly close to link up`);
+    }
+    else if (m.t === "hit") { $("flash").classList.add("on"); setTimeout(() => $("flash").classList.remove("on"), 80); navigator.vibrate?.(120); }
+    else if (m.t === "error") {
+      m.msg = { "no such room": "No game with that code. Check the big screen." }[m.msg] || m.msg;
+      if (joined) $("status").textContent = m.msg; else { $("joinStatus").textContent = m.msg; $("go").disabled = false; }
+      ws.onclose = null; ws.close();
+    }
+  };
+  ws.onclose = () => { if (joined) { $("status").textContent = "reconnecting..."; setTimeout(connect, 1000); } };
+}
+
+$("go").onclick = async () => {
+  wantRoom = $("room").value.trim().toUpperCase(); wantName = $("name").value.trim() || "pilot";
+  if (!/^[A-HJ-NP-Z]{4}$/.test(wantRoom)) return void ($("joinStatus").textContent = "Enter the 4-letter code on the big screen.");
+  $("go").disabled = true; ls("ail.name", wantName);
+  try {                                                                           // iOS needs this inside the tap, Android just sends events
+    if (DeviceOrientationEvent.requestPermission && (await DeviceOrientationEvent.requestPermission()) !== "granted") throw 0;
+    sensors = seen || await new Promise((resolve) => {
+      const timer = setTimeout(() => { removeEventListener("deviceorientation", probe); resolve(false); }, 1500);
+      function probe(e) { if (e.gamma == null) return; clearTimeout(timer); removeEventListener("deviceorientation", probe); resolve(true); }
+      addEventListener("deviceorientation", probe);
+    });
+  } catch { sensors = false; }
+  try { await navigator.wakeLock?.request("screen"); } catch {}
+  connect();
+};
+
+setInterval(() => {                                                              // 20 Hz, only on change, plus a heartbeat every second
+  if (!joined || ws?.readyState !== 1) return;
+  const msg = `{"t":"in","r":${axes.r.toFixed(2)},"p":${axes.p.toFixed(2)}}`;
+  if (msg === sent && ++idle < 20) return;
+  ws.send(sent = msg); idle = 0;
+}, 50);
+
+const fire = (on) => { $("fire").classList.toggle("down", on); if (ws?.readyState === 1) ws.send(`{"t":"fire","on":${on ? 1 : 0}}`); };
+$("fire").onpointerdown = (e) => { e.preventDefault(); fire(true); };
+for (const ev of ["pointerup", "pointercancel", "pointerleave"]) $("fire")["on" + ev] = () => fire(false);
+document.onvisibilitychange = () => { if (document.hidden) fire(false); else navigator.wakeLock?.request("screen").catch(() => {}); };
+
+$("recenter").onclick = () => { zero = last ? { ...last } : null; };
+$("invR").onclick = () => { flipR = !flipR; ls("ail.flipR", flipR ? "1" : "0"); };
+$("invP").onclick = () => { flipP = !flipP; ls("ail.flipP", flipP ? "1" : "0"); };
+
+$("field").onpointerdown = $("field").onpointermove = (e) => {                    // no-sensor fallback: drag in the box
+  if (sensors || (!e.buttons && e.pointerType !== "touch")) return;
+  const b = $("field").getBoundingClientRect();
+  axes.r = clamp(((e.clientX - b.left) / b.width) * 2 - 1, -1, 1);
+  axes.p = clamp(1 - ((e.clientY - b.top) / b.height) * 2, -1, 1);
+  showBall();
+};
+$("field").onpointerup = $("field").onpointercancel = () => { if (!sensors) { axes.r = axes.p = 0; showBall(); } };
+</script>
