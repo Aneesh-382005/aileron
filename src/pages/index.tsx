@@ -63,7 +63,7 @@ export default function Landing() {
               Tilt your phone. Fly together.
             </h1>
             <p className="mt-6 max-w-md text-lg text-muted-foreground">
-              One screen shows the sky. Every phone in the room becomes a plane. No app to install, no sign-up for players.
+              One screen shows the sky. Every phone in the room becomes a plane. No app to install, and nobody needs an account, not even the host.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <a href="/host" className="rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground hover:opacity-90">Host a game</a>
@@ -112,7 +112,7 @@ export default function Landing() {
               </g>
             </g>
           </svg>
-          <div className="absolute left-5 top-4 font-display text-sm tracking-[0.25em] text-muted-foreground">ROOM <span className="text-primary">QRBK</span></div>
+          <div className="absolute left-5 top-4 font-display text-sm tracking-[0.25em] text-muted-foreground">PREVIEW</div>
           <div className="absolute right-5 top-4 flex gap-1">
             {Array.from({ length: 8 }, (_, i) => <span key={i} className={`h-2 w-4 rounded-sm ${i < 6 ? 'bg-primary' : 'bg-muted'}`} />)}
           </div>
@@ -141,7 +141,7 @@ export default function Landing() {
             <div>
               <h2 className="font-display text-4xl font-bold tracking-tight">Make it a weekly ritual.</h2>
               <p className="mt-4 max-w-md text-muted-foreground">
-                Claim a permanent page like <span className="text-foreground">/v/friday-meetup</span>. Every game hosted there lands in its hall of fame.
+                Claim a permanent page like <span className="text-foreground">/v/friday-meetup</span>. Every game hosted there lands in its hall of fame. Venues are the one thing that needs a sign-in.
               </p>
               <Link to="/me" className="mt-8 inline-block rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">Create a venue</Link>
             </div>

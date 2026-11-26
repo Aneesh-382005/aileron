@@ -21,10 +21,14 @@ test('venues: create from /me, unique slugs, reserved names, five per user, publ
   }
 
   const slug = `e2e-${Date.now().toString(36)}`
-  await a.page.getByLabel('Name').fill('E2E Meetup')
+  await a.page.getByLabel('Name').fill('E2E Draft')
   await a.page.getByLabel('Address').fill(slug)
   await a.page.getByRole('button', { name: 'Create venue' }).click()
   await expect(a.page.getByTestId('venue-row')).toHaveCount(1)
+  await a.page.getByRole('button', { name: 'Rename' }).click()
+  await a.page.getByLabel('Venue name').fill('E2E Meetup')
+  await a.page.getByRole('button', { name: 'Save' }).click()
+  await expect(a.page.getByRole('link', { name: 'E2E Meetup' })).toBeVisible()
 
   await b.page.goto('/me')
   expect(await action(b.page, { slug, title: 'Stolen' })).toMatchObject({ success: false, error: expect.stringMatching(/taken/) })
