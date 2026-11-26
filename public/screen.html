@@ -53,7 +53,6 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp = (a, b, u) => a + (b - a) * u;
 let COLORS = [0xcccccc];                                      // replaced by the server's palette in the first message
 const CYCLE_S = 120, LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const hex = (c) => "#" + c.toString(16).padStart(6, "0");
 const store = (k, v) => { try { return v == null ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch {} };
 
@@ -108,7 +107,7 @@ starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
 const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false }));
 scene.add(stars);
 
-// [time of day 0..1, sky, ground tint, light]; the sun peaks at 0.25 and sets at 0.5. Pale haze and twilight keys keep orange -> blue from going gray.
+// [time of day 0..1, sky, ground tint, light]; the sun peaks at 0.25 and sets at 0.5.
 const KEYS = [
   [0.00, 0xf0a070, 0xc8b090, 0.8], [0.08, 0xcfe2f0, 0xe8e0d0, 0.95], [0.18, 0x7cc7f5, 0xffffff, 1.1], [0.34, 0x7cc7f5, 0xffffff, 1.1],
   [0.44, 0xf2c28f, 0xe8c8a0, 0.9], [0.50, 0xe0703c, 0xd09070, 0.75], [0.57, 0x4a3566, 0x6a5a7a, 0.55], [0.66, 0x070b1c, 0x30406a, 0.4],
@@ -220,7 +219,7 @@ function connect() {
     } else if (m.t === "roster") { roster = m.players; drawCard(); }
     else if (m.t === "saved" && m.venue) fetch(`/api/venues/${m.venue}/hall`).then((r) => r.json()).then((h) => { hall = h; drawCard(); }).catch(() => {});
     else if (m.t === "room") {
-      code = m.code; COLORS = m.colors; max = m.max; venueTitle = esc(m.venueTitle || ""); problem = "";
+      code = m.code; COLORS = m.colors; max = m.max; venueTitle = String(m.venueTitle || "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`); problem = "";
       if (!watch) ss("ail.code" + venue, code);
       $("room").innerHTML = `join at ${location.host}/r<b>${code}</b>`;
       drawCard();

@@ -1,22 +1,3 @@
-/**
- * Design Direction
- *
- * Product: a co-op party game for meetups and classrooms; one screen shows the sky, every phone in the room steers a plane by tilting.
- * Emotion: the shout that goes up when the wall wave closes and the whole room squeezes through the gap.
- * Metaphor: an airshow at dusk, two jets in tight formation trailing a gold tracer between them.
- * References: Red Arrows formation livery; split-flap airport departure boards; Saul Bass title sequences.
- * Signature: the gold link beam that appears between two wingmates flying close.
- * Hero: two planes bank left and right in step with a tilting phone, the beam pulses, red targets rush in from the horizon.
- *
- * Style Tile
- * - Color: dusk navy dominant, amber accent for the link, crew coral and cyan, high contrast for projectors
- * - Type: Space Grotesk (heading) + Inter (body); instrument-panel precision that reads from the back of a room
- * - Theme: dark; it runs on projectors in dim rooms and the game sky is dusk
- * - Art direction: modern minimalism
- * - Motion: purposeful loops, all off under prefers-reduced-motion
- * - Voice: second person; headlines under 7 words; never starts with "we"
- */
-
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Copy } from 'lucide-react'

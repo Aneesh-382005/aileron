@@ -1,4 +1,4 @@
-// Static game pages (public/screen.html, public/pad.html) at product URLs, ahead of the SPA fallback.
+// The game pages, served at product URLs ahead of the SPA fallback.
 
 import type { Context, Hono } from 'hono'
 import type { AppContext } from '../../worker.js'

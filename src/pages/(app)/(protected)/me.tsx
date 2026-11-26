@@ -1,5 +1,4 @@
-/* home pattern: data-forward — your venues with their links, plus the form to claim another */
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuthToken, useAuth, useMutations, useQuery } from 'deepspace'
 import { Copy, MapPin, Pencil, Trash2 } from 'lucide-react'
@@ -19,21 +18,6 @@ export default function MyVenues() {
   const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null)
   const problem = slug ? slugProblem(slug) : null
   const full = records.length >= MAX_VENUES_PER_USER
-
-  const create = async (e: FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    try {
-      const res = await fetch('/api/actions/createVenue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getAuthToken()}` },
-        body: JSON.stringify({ slug, title }),
-      }).then((r) => r.json() as Promise<{ success: boolean; error?: string }>)
-      if (!res.success) return error('Could not create venue', res.error)
-      success('Venue created', `${location.host}/v/${slug} is yours.`)
-      setSlug(''); setTitle('')
-    } finally { setBusy(false) }
-  }
 
   const act = async (fn: () => Promise<void>, done: string) => {
     try { await fn(); success(done) } catch (e) { error('Something went wrong', String((e as Error).message ?? e)) }
@@ -65,7 +49,20 @@ export default function MyVenues() {
         )}
       </div>
 
-      <form onSubmit={create} className="mt-10 rounded-xl border border-border p-6">
+      <form onSubmit={async (e) => {
+        e.preventDefault()
+        setBusy(true)
+        try {
+          const res = await fetch('/api/actions/createVenue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getAuthToken()}` },
+            body: JSON.stringify({ slug, title }),
+          }).then((r) => r.json() as Promise<{ success: boolean; error?: string }>)
+          if (!res.success) return error('Could not create venue', res.error)
+          success('Venue created', `${location.host}/v/${slug} is yours.`)
+          setSlug(''); setTitle('')
+        } finally { setBusy(false) }
+      }} className="mt-10 rounded-xl border border-border p-6">
         <h2 className="text-lg font-semibold">New venue</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1.5">

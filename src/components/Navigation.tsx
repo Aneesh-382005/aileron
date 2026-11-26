@@ -1,19 +1,9 @@
-/**
- * Top nav — minimal placeholder bar wired to the app's mechanisms:
- * nav.ts-driven links (with role/dev filtering), sign-in via <AuthOverlay>,
- * and sign-out. Restyle or rebuild it freely; keep the data-testid hooks
- * (`app-navigation`, `nav-sign-in-button`, `nav-user-name`, `nav-user-email`)
- * — the shipped tests rely on them. `nav-user-email` is the one that carries
- * an identity the test can check exactly: a display name is optional, the
- * email is the credential the session was opened with.
- */
+// Tests rely on the data-testid hooks: app-navigation, nav-sign-in-button, nav-user-name, nav-user-email.
 
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { AuthOverlay, useAuthProfileReady, signOut } from 'deepspace'
 import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
-import type { Role } from '../constants'
-import { nav } from '../nav'
 import { cn } from '../lib/utils'
 import {
   Avatar,
@@ -34,37 +24,19 @@ export default function Navigation() {
   const [showAuthModal, setShowAuthModal] = useState(false)
 
   const profileReady = !isSignedIn || (!userLoading && !!user)
-  const userRole = (user?.role ?? 'anonymous') as Role | 'anonymous'
 
   // Close the mobile menu when navigating
   useEffect(() => {
     setMobileMenuOpen(false)
   }, [location.pathname])
 
-  const visibleNav = nav.filter((item) => {
-    if (item.devOnly && !import.meta.env.DEV) return false
-    if (!item.roles) return true
-    if (!profileReady) return false
-    if (userRole === 'admin') return true
-    return item.roles.includes(userRole as Role)
-  })
-
-  const navLink = (item: (typeof nav)[number]) => {
-    const active = location.pathname.startsWith(item.path)
-    return (
-      <Link
-        key={item.path}
-        to={item.path}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          'px-3 py-1.5 text-sm',
-          active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        {item.label}
-      </Link>
-    )
-  }
+  const active = location.pathname.startsWith('/me')
+  const venues = (
+    <Link to="/me" aria-current={active ? 'page' : undefined}
+      className={cn('px-3 py-1.5 text-sm', active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+      My venues
+    </Link>
+  )
 
   return (
     <>
@@ -74,7 +46,7 @@ export default function Navigation() {
             AILERON
           </Link>
 
-          <div className="hidden items-center md:flex">{visibleNav.map(navLink)}</div>
+          <div className="hidden items-center md:flex">{venues}</div>
 
           <div className="flex-1" />
           <a href="/host" className="hidden rounded-full border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted sm:inline">Host a game</a>
@@ -154,7 +126,7 @@ export default function Navigation() {
 
         {mobileMenuOpen && (
           <div className="flex flex-col border-t border-border px-2 py-2 md:hidden">
-            {visibleNav.map(navLink)}
+            {venues}
           </div>
         )}
       </nav>

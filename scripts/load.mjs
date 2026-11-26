@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-// Load test: one host screen plus N fake phones against a GameRoom.
+// One host screen plus N fake phones sending tilt at 20 Hz. CPU is only read for localhost.
 //   node scripts/load.mjs http://localhost:5173 1,8,16,24 30
-// Phones send tilt at 20 Hz (worst case) and toggle fire. Against a deployed URL the snapshot gaps include real
-// network jitter; workerd CPU is only read for localhost.
 import { readdirSync, readFileSync } from 'node:fs'
 
 const base = (process.argv[2] || 'http://localhost:5173').replace(/\/$/, '')

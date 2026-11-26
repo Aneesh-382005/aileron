@@ -115,7 +115,7 @@ addEventListener("resize", checkOverlay);
 setMode();
 
 addEventListener("deviceorientation", (e) => {
-  if (e.gamma != null) seen = true;                     // browsers fire the first event at page load, and later ones only when the reading changes
+  if (e.gamma != null) seen = true;                     // the first event fires at page load, later ones only on change
   if (!sensors || e.gamma == null || e.beta == null) return;
   const ang = angle();
   if (land) {

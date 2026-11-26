@@ -1,6 +1,4 @@
-// Records the demo video against the live site, from a venue's page: scripted pilots plus one phone
-// (simulated tilt) fly a game and the score lands on the venue's board. Everything runs in a hidden
-// browser on this machine's GPU, so the screen is never touched.
+// Records a game on the live site in a hidden GPU browser, then cuts it into the demo video.
 //   node scripts/demo.mjs <venue-slug>          record + edit  ->  demo/aileron-demo.mp4
 //   node scripts/demo.mjs <venue-slug> --edit   re-edit the last recording
 import { chromium } from '@playwright/test'
@@ -32,7 +30,7 @@ setInterval(() => {
   dispatchEvent(Object.assign(new Event('deviceorientation'), { alpha: 0, beta: Math.asin(-sx) / D, gamma: Math.atan2(-sy, Math.sin(p)) / D }))
 }, 50)`
 
-async function record() {
+if (!process.argv.includes('--edit')) {
   rmSync(OUT, { recursive: true, force: true }); mkdirSync(RAW, { recursive: true })
   const gpu = await chromium.launch({ args: ['--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu'] })
   const hostCtx = await gpu.newContext({ viewport: { width: W, height: H }, recordVideo: { dir: `${RAW}/host`, size: { width: W, height: H } } })
@@ -126,90 +124,79 @@ async function record() {
   writeFileSync(`${RAW}/marks.json`, JSON.stringify(marks, null, 2))
 }
 
-// Title cards and captions are rendered as HTML so they use the app's fonts and colours.
-async function cards(list) {
-  const browser = await chromium.launch(), page = await browser.newPage({ viewport: { width: W, height: H } })
-  const font = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap">'
-  for (const [file, html, transparent] of list) {
-    await page.setContent(`${font}<body style="margin:0;width:${W}px;height:${H}px;${transparent ? 'background:transparent' : 'background:#0b1220'};color:#f2f6ff;font-family:Inter">${html}</body>`)
-    await page.waitForTimeout(600)
-    await page.screenshot({ path: file, omitBackground: !!transparent })
-  }
-  await browser.close()
+const m = JSON.parse(readFileSync(`${RAW}/marks.json`, 'utf8'))
+// Playwright's video starts a moment after the page does; line cuts up using each file's real length.
+const length = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]))
+const hostShift = Math.max(0, m.end - length(`${RAW}/host.webm`)), phoneShift = Math.max(0, m.phoneEnd - m.phoneStart - length(`${RAW}/phone.webm`))
+const title = (big, small) => `<div style="height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 170px">
+  <div style="font:700 38px 'Space Grotesk';letter-spacing:.35em;color:#ffb020">AILERON</div>
+  <div style="font:700 116px/1.05 'Space Grotesk';margin-top:26px;max-width:1400px">${big}</div>
+  <div style="font:400 40px Inter;color:#9aa7c2;margin-top:34px">${small}</div></div>`
+const segs = [
+  ['landing', m.landing, m.venue - 0.3, 'A big screen for the sky. Phones for planes.'],
+  ['venue', m.venue, m.lobby - 0.2, 'Venues keep a hall of fame for your group'],
+  ['lobby', m.lobby, m.phoneStart, 'Scan the code. Pilots pair up as wingmates.'],
+  ['join', m.phoneStart + 0.3, m.play, 'No app to install: type a name and fly'],
+  ['play', m.play + 0.5, m.play + 15, 'Tilt to steer. Fly close to your wingmate to link up.'],
+  ['play2', m.play + 15, m.crash, 'Every phone is a plane. Up to 24 per room.'],
+  ['over', m.over - 1.5, m.over + 7, 'The score lands on the venue’s hall of fame'],
+  ['board', m.board, m.end, 'Live leaderboards per venue, built on DeepSpace'],
+]
+// Cards and captions are rendered as HTML so they use the app's fonts and colours.
+const browser = await chromium.launch(), page = await browser.newPage({ viewport: { width: W, height: H } })
+for (const [file, html, transparent] of [
+  [`${RAW}/title.png`, title('Tilt your phone.<br>Fly together.', 'A co-op party game for meetups and classrooms')],
+  [`${RAW}/end.png`, title('aileron.app.space', 'No app, no sign-up. Built on DeepSpace: realtime rooms, auth and records.')],
+  [`${RAW}/go.png`, `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:repeating-linear-gradient(100deg,#0b1220 0 60px,#111a2e 60px 64px)">
+    <div style="font:700 220px 'Space Grotesk';letter-spacing:.08em;color:#ffb020;text-shadow:0 0 60px #ffb02066">TAKEOFF</div>
+    <div style="font:600 40px Inter;letter-spacing:.4em;color:#9aa7c2;margin-top:10px">WAVE 1 INCOMING</div></div>`],
+  ...segs.map(([k, , , text]) => [`${RAW}/cap-${k}.png`, `<div style="position:absolute;left:60px;bottom:56px;padding:20px 32px;border-radius:20px;background:#0b1220e6;border:2px solid #243352;font:600 40px Inter">${text}</div>`, true]),
+]) {
+  await page.setContent(`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap"><body style="margin:0;width:${W}px;height:${H}px;background:${transparent ? 'transparent' : '#0b1220'};color:#f2f6ff;font-family:Inter">${html}</body>`)
+  await page.waitForTimeout(600)
+  await page.screenshot({ path: file, omitBackground: !!transparent })
 }
+await browser.close()
 
-async function edit() {
-  const m = JSON.parse(readFileSync(`${RAW}/marks.json`, 'utf8'))
-  // Playwright's video starts a moment after the page does; line cuts up using each file's real length.
-  const length = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]))
-  const hostShift = Math.max(0, m.end - length(`${RAW}/host.webm`)), phoneShift = Math.max(0, m.phoneEnd - m.phoneStart - length(`${RAW}/phone.webm`))
-  const title = (big, small) => `<div style="height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 170px">
-    <div style="font:700 38px 'Space Grotesk';letter-spacing:.35em;color:#ffb020">AILERON</div>
-    <div style="font:700 116px/1.05 'Space Grotesk';margin-top:26px;max-width:1400px">${big}</div>
-    <div style="font:400 40px Inter;color:#9aa7c2;margin-top:34px">${small}</div></div>`
-  const caption = (text) => `<div style="position:absolute;left:60px;bottom:56px;padding:20px 32px;border-radius:20px;background:#0b1220e6;border:2px solid #243352;font:600 40px Inter">${text}</div>`
-  const segs = [
-    ['landing', m.landing, m.venue - 0.3, 'A big screen for the sky. Phones for planes.'],
-    ['venue', m.venue, m.lobby - 0.2, 'Venues keep a hall of fame for your group'],
-    ['lobby', m.lobby, m.phoneStart, 'Scan the code. Pilots pair up as wingmates.'],
-    ['join', m.phoneStart + 0.3, m.play, 'No app to install: type a name and fly'],
-    ['play', m.play + 0.5, m.play + 15, 'Tilt to steer. Fly close to your wingmate to link up.'],
-    ['play2', m.play + 15, m.crash, 'Every phone is a plane. Up to 24 per room.'],
-    ['over', m.over - 1.5, m.over + 7, 'The score lands on the venue’s hall of fame'],
-    ['board', m.board, m.end, 'Live leaderboards per venue, built on DeepSpace'],
-  ]
-  await cards([
-    [`${RAW}/title.png`, title('Tilt your phone.<br>Fly together.', 'A co-op party game for meetups and classrooms')],
-    [`${RAW}/end.png`, title('aileron.app.space', 'No app, no sign-up. Built on DeepSpace: realtime rooms, auth and records.')],
-    [`${RAW}/go.png`, `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:repeating-linear-gradient(100deg,#0b1220 0 60px,#111a2e 60px 64px)">
-      <div style="font:700 220px 'Space Grotesk';letter-spacing:.08em;color:#ffb020;text-shadow:0 0 60px #ffb02066">TAKEOFF</div>
-      <div style="font:600 40px Inter;letter-spacing:.4em;color:#9aa7c2;margin-top:10px">WAVE 1 INCOMING</div></div>`],
-    ...segs.map(([k, , , text]) => [`${RAW}/cap-${k}.png`, caption(text), true]),
-  ])
+const ff = (...args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...args], { stdio: 'inherit' })
+const enc = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-crf', '18', '-preset', 'slow']
+// Stills get a camera move: a slow push-in for the title, a punch-in for TAKEOFF.
+const still = (png, out, secs, zoom, fade) => ff('-loop', '1', '-framerate', '25', '-t', String(secs), '-i', png, '-vf',
+  `scale=${W * 2}:${H * 2},zoompan=z='${zoom}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=${W}x${H}:fps=25${fade}`, ...enc, out)
+still(`${RAW}/title.png`, `${RAW}/s-title.mp4`, 3.2, '1+0.025*on/25', ',fade=in:0:15')
+still(`${RAW}/go.png`, `${RAW}/s-go.mp4`, 1.2, 'max(1,1.35-0.03*on)', '')
+still(`${RAW}/end.png`, `${RAW}/s-end.mp4`, 3.5, '1.04-0.01*on/25', `,fade=out:st=3:d=0.5`)
 
-  const ff = (...args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...args], { stdio: 'inherit' })
-  const enc = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-crf', '18', '-preset', 'slow']
-  // Stills get a camera move: a slow push-in for the title, a punch-in for TAKEOFF.
-  const still = (png, out, secs, zoom, fade) => ff('-loop', '1', '-framerate', '25', '-t', String(secs), '-i', png, '-vf',
-    `scale=${W * 2}:${H * 2},zoompan=z='${zoom}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=${W}x${H}:fps=25${fade}`, ...enc, out)
-  still(`${RAW}/title.png`, `${RAW}/s-title.mp4`, 3.2, '1+0.025*on/25', ',fade=in:0:15')
-  still(`${RAW}/go.png`, `${RAW}/s-go.mp4`, 1.2, 'max(1,1.35-0.03*on)', '')
-  still(`${RAW}/end.png`, `${RAW}/s-end.mp4`, 3.5, '1.04-0.01*on/25', `,fade=out:st=3:d=0.5`)
-
-  for (const [k, a, b] of segs) {
-    const dur = (b - a).toFixed(2)
-    const inputs = ['-i', `${RAW}/host.webm`, '-i', `${RAW}/cap-${k}.png`]
-    let graph = `[0:v]trim=start=${Math.max(0, a - hostShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS[v];[v][1:v]overlay=0:0[out]`
-    if (a >= m.phoneStart - 0.5 && b <= m.over + 8) {
-      // The phone floats in 3D at the right, turned toward the sky, and moves with the same tilt TILT feeds it:
-      // wheel turn in ld(0), pitch in ld(1), a fixed yaw in ld(2), projected with a 1400 px focal length.
-      const s = `(in/25+${(a - m.fly).toFixed(2)})`, on = `gte(${s},0)`
-      const pre = `st(0,${on}*20*PI/180*sin(${s}/1.2));st(1,-0.2-${on}*7*PI/180*sin(${s}/1.7));st(2,-0.35)`
-      const corner = (X, Y) => {
-        const xy = `${pre};st(3,${X}*cos(ld(0))-(${Y})*sin(ld(0)));st(4,${X}*sin(ld(0))+(${Y})*cos(ld(0)));st(5,1400/(1400-ld(3)*sin(ld(2))+ld(4)*sin(ld(1))*cos(ld(2))))`
-        return [`'${xy};450+(ld(3)*cos(ld(2))+ld(4)*sin(ld(1))*sin(ld(2)))*ld(5)'`, `'${xy};450+ld(4)*cos(ld(1))*ld(5)'`]
-      }
-      const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = [corner(-450, -450), corner(450, -450), corner(-450, 450), corner(450, 450)]
-      inputs.push('-i', `${RAW}/phone.webm`)
-      graph += `;[2:v]trim=start=${Math.max(0, a - m.phoneStart - phoneShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS,scale=600:-2:flags=lanczos,`
-        + `pad=iw+28:ih+28:14:14:color=0x05080f,pad=iw+4:ih+4:2:2:color=0x3a4a6b,format=rgba,pad=900:900:(ow-iw)/2:(oh-ih)/2:color=black@0,`
-        + `perspective=x0=${x0}:y0=${y0}:x1=${x1}:y1=${y1}:x2=${x2}:y2=${y2}:x3=${x3}:y3=${y3}:sense=destination:eval=frame,split[p][s];`
-        + `[s]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.5,boxblur=20[sh];[out][sh]overlay=W-800:130[o];[o][p]overlay=W-830:90[pip]`
+for (const [k, a, b] of segs) {
+  const dur = (b - a).toFixed(2)
+  const inputs = ['-i', `${RAW}/host.webm`, '-i', `${RAW}/cap-${k}.png`]
+  let graph = `[0:v]trim=start=${Math.max(0, a - hostShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS[v];[v][1:v]overlay=0:0[out]`
+  if (a >= m.phoneStart - 0.5 && b <= m.over + 8) {
+    // The phone floats in 3D at the right, turned toward the sky, and moves with the same tilt TILT feeds it:
+    // wheel turn in ld(0), pitch in ld(1), a fixed yaw in ld(2), projected with a 1400 px focal length.
+    const s = `(in/25+${(a - m.fly).toFixed(2)})`, on = `gte(${s},0)`
+    const pre = `st(0,${on}*20*PI/180*sin(${s}/1.2));st(1,-0.2-${on}*7*PI/180*sin(${s}/1.7));st(2,-0.35)`
+    const corner = (X, Y) => {
+      const xy = `${pre};st(3,${X}*cos(ld(0))-(${Y})*sin(ld(0)));st(4,${X}*sin(ld(0))+(${Y})*cos(ld(0)));st(5,1400/(1400-ld(3)*sin(ld(2))+ld(4)*sin(ld(1))*cos(ld(2))))`
+      return [`'${xy};450+(ld(3)*cos(ld(2))+ld(4)*sin(ld(1))*sin(ld(2)))*ld(5)'`, `'${xy};450+ld(4)*cos(ld(1))*ld(5)'`]
     }
-    ff(...inputs, '-filter_complex', graph, '-map', graph.endsWith('[pip]') ? '[pip]' : '[out]', ...enc, `${RAW}/s-${k}.mp4`)
+    const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = [corner(-450, -450), corner(450, -450), corner(-450, 450), corner(450, 450)]
+    inputs.push('-i', `${RAW}/phone.webm`)
+    graph += `;[2:v]trim=start=${Math.max(0, a - m.phoneStart - phoneShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS,scale=600:-2:flags=lanczos,`
+      + `pad=iw+28:ih+28:14:14:color=0x05080f,pad=iw+4:ih+4:2:2:color=0x3a4a6b,format=rgba,pad=900:900:(ow-iw)/2:(oh-ih)/2:color=black@0,`
+      + `perspective=x0=${x0}:y0=${y0}:x1=${x1}:y1=${y1}:x2=${x2}:y2=${y2}:x3=${x3}:y3=${y3}:sense=destination:eval=frame,split[p][s];`
+      + `[s]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.5,boxblur=20[sh];[out][sh]overlay=W-800:130[o];[o][p]overlay=W-830:90[pip]`
   }
-  // Each clip blends into the next with a game-style transition; the two flying clips stay one shot.
-  const chain = [['title'], ['landing', 'pixelize'], ['venue', 'slideleft'], ['lobby', 'circleopen'], ['join', 'hlslice'], ['go', 'zoomin'],
-    ['play', 'pixelize'], ['play2', 'fade'], ['over', 'radial'], ['board', 'slideleft'], ['end', 'fadeblack']]
-  let graph = '', last = '[0:v]', at = length(`${RAW}/s-title.mp4`)
-  chain.slice(1).forEach(([k, transition], i) => {
-    const d = transition === 'fade' ? 0.04 : 0.5
-    graph += `${last}[${i + 1}:v]xfade=transition=${transition}:duration=${d}:offset=${(at - d).toFixed(3)}[x${i}];`
-    last = `[x${i}]`; at += length(`${RAW}/s-${k}.mp4`) - d
-  })
-  ff(...chain.flatMap(([k]) => ['-i', `${RAW}/s-${k}.mp4`]), '-filter_complex', graph.slice(0, -1), '-map', last, ...enc, '-movflags', '+faststart', `${OUT}/aileron-demo.mp4`)
-  console.log(`${OUT}/aileron-demo.mp4`)
+  ff(...inputs, '-filter_complex', graph, '-map', graph.endsWith('[pip]') ? '[pip]' : '[out]', ...enc, `${RAW}/s-${k}.mp4`)
 }
-
-if (!process.argv.includes('--edit')) await record()
-await edit()
+// Each clip blends into the next with a game-style transition; the two flying clips stay one shot.
+const chain = [['title'], ['landing', 'pixelize'], ['venue', 'slideleft'], ['lobby', 'circleopen'], ['join', 'hlslice'], ['go', 'zoomin'],
+  ['play', 'pixelize'], ['play2', 'fade'], ['over', 'radial'], ['board', 'slideleft'], ['end', 'fadeblack']]
+let graph = '', last = '[0:v]', at = length(`${RAW}/s-title.mp4`)
+chain.slice(1).forEach(([k, transition], i) => {
+  const d = transition === 'fade' ? 0.04 : 0.5
+  graph += `${last}[${i + 1}:v]xfade=transition=${transition}:duration=${d}:offset=${(at - d).toFixed(3)}[x${i}];`
+  last = `[x${i}]`; at += length(`${RAW}/s-${k}.mp4`) - d
+})
+ff(...chain.flatMap(([k]) => ['-i', `${RAW}/s-${k}.mp4`]), '-filter_complex', graph.slice(0, -1), '-map', last, ...enc, '-movflags', '+faststart', `${OUT}/aileron-demo.mp4`)
+console.log(`${OUT}/aileron-demo.mp4`)

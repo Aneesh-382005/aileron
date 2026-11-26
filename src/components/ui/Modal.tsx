@@ -12,10 +12,6 @@ import {
 import { Button } from './Button'
 import { cn } from '@/lib/utils'
 
-// ============================================================================
-// Modal - Accessible modal dialog (wraps the Base UI Dialog primitives in ./Dialog)
-// ============================================================================
-
 interface ModalProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   open: boolean
   onClose: () => void
@@ -55,10 +51,6 @@ export function Modal({
   )
 }
 
-// ============================================================================
-// Modal.Header
-// ============================================================================
-
 interface ModalHeaderProps {
   children: ReactNode
   className?: string
@@ -71,10 +63,6 @@ function ModalHeader({ children, className = '' }: ModalHeaderProps): JSX.Elemen
     </DHeader>
   )
 }
-
-// ============================================================================
-// Modal.Title
-// ============================================================================
 
 interface ModalTitleProps {
   children: ReactNode
@@ -91,10 +79,6 @@ function ModalTitle({ children, className = '' }: ModalTitleProps): JSX.Element 
   )
 }
 
-// ============================================================================
-// Modal.Description
-// ============================================================================
-
 interface ModalDescriptionProps {
   children: ReactNode
   className?: string
@@ -107,10 +91,6 @@ function ModalDescription({ children, className = '' }: ModalDescriptionProps): 
     </DDescription>
   )
 }
-
-// ============================================================================
-// Modal.Body - Scrollable content area
-// ============================================================================
 
 interface ModalBodyProps {
   children: ReactNode
@@ -130,10 +110,6 @@ function ModalBody({ children, className = '' }: ModalBodyProps): JSX.Element {
   )
 }
 
-// ============================================================================
-// Modal.Footer - Action buttons area
-// ============================================================================
-
 interface ModalFooterProps {
   children: ReactNode
   className?: string
@@ -146,10 +122,6 @@ function ModalFooter({ children, className = '' }: ModalFooterProps): JSX.Elemen
     </DFooter>
   )
 }
-
-// ============================================================================
-// ConfirmModal - Pre-built confirmation dialog
-// ============================================================================
 
 interface ConfirmModalProps {
   open: boolean
@@ -192,14 +164,8 @@ export function ConfirmModal({
   )
 }
 
-// ============================================================================
-// Attach sub-components
-// ============================================================================
-
 Modal.Header = ModalHeader
 Modal.Title = ModalTitle
 Modal.Description = ModalDescription
 Modal.Body = ModalBody
 Modal.Footer = ModalFooter
-
-export default Modal

@@ -1,5 +1,4 @@
-// One Durable Object per room code: the 30 Hz sim, the host screen, mirror screens and phones.
-// Only finished runs are persisted. The loop stops when nobody is flying, so idle sockets hibernate.
+// One Durable Object per room code. It runs the game, streams it to the screens and saves finished runs.
 
 import { BaseRoom } from 'deepspace/worker'
 import type { UserAttachment } from 'deepspace/worker'

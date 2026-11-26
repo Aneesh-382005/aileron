@@ -12,22 +12,6 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const Dialog = DialogPrimitive.Root
-const DialogTrigger = DialogPrimitive.Trigger
-const DialogPortal = DialogPrimitive.Portal
-const DialogClose = DialogPrimitive.Close
-
-function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
-  return (
-    <DialogPrimitive.Backdrop
-      data-slot="dialog-overlay"
-      className={cn(
-        'fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:duration-200',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
 
 function DialogContent({
   className,
@@ -36,10 +20,14 @@ function DialogContent({
   ...props
 }: DialogPrimitive.Popup.Props & { hideClose?: boolean }) {
   return (
-    <DialogPortal>
+    <DialogPrimitive.Portal>
       {/* forceRender: give every modal its own backdrop, even a nested one, so
           opening a modal from within a modal visibly deepens the scrim. */}
-      <DialogOverlay forceRender />
+      <DialogPrimitive.Backdrop
+        forceRender
+        data-slot="dialog-overlay"
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:duration-200"
+      />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
@@ -61,7 +49,7 @@ function DialogContent({
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
-    </DialogPortal>
+    </DialogPrimitive.Portal>
   )
 }
 
@@ -105,15 +93,4 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
   )
 }
 
-export {
-  Dialog,
-  DialogPortal,
-  DialogOverlay,
-  DialogTrigger,
-  DialogClose,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-}
+export { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription }
