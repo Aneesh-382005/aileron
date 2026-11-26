@@ -46,7 +46,6 @@ export class GameRoom extends BaseRoom<Env> {
   private loop: ReturnType<typeof setInterval> | null = null
   private last = 0
   private behind = 0
-  private gaps: number[] = []
   private rate = new WeakMap<WebSocket, { sec: number; n: number }>()
 
   async fetch(request: Request): Promise<Response> {
@@ -119,10 +118,6 @@ export class GameRoom extends BaseRoom<Env> {
 
     } else if (room && att.kind === 'host' && ws === room.host) {
       if (m.t === 'start' && room.game.state !== 'play' && this.live(room)) { startGame(room.game, randSeed()); this.updateLoop() }
-      else if (m.t === 'stats') {
-        const g = [...this.gaps].sort((a, b) => a - b), q = (f: number) => g[Math.floor(g.length * f)] ?? 0
-        this.send(ws, { t: 'stats', ticks: g.length, p50: q(0.5), p95: q(0.95), p99: q(0.99), max: g.at(-1) ?? 0 })
-      }
 
     } else if (room && att.kind === 'phone' && att.token) {
       const me = room.players.get(att.token)
@@ -206,7 +201,6 @@ export class GameRoom extends BaseRoom<Env> {
       const r = this.room
       if (!r) return this.updateLoop()
       const now = Date.now()
-      this.gaps.push(now - this.last); if (this.gaps.length > 900) this.gaps.shift()
       this.behind = Math.min(this.behind + now - this.last, STEP_MS * 3)   // late timers catch up, at most 3 steps
       this.last = now
       const before = r.game.state, ev: unknown[][] = []

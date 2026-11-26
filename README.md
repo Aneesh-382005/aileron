@@ -1,60 +1,50 @@
 # Aileron
 
-A co-op party game for meetups, classrooms and hackathon openers. One screen shows the sky; every phone in the room becomes a plane. Tilt to steer, hold to fire, fly close to your wingmate to link up. No app and no sign-up for players.
+A co-op flying game for meetups, classrooms and hackathon kickoffs. One big screen shows the sky, and every phone in the room becomes a plane. Tilt to steer, hold to fire, and fly close to your wingmate for double points. Players don't install anything or sign up.
 
-Live: https://aileron.app.space
+**Play:** https://aileron.app.space
 
 ## Host a game
 
-1. Open **aileron.app.space** on the laptop driving the projector and press **Host a game** (or go straight to `/host`).
-2. Players scan the QR code, or open `aileron.app.space/r` and type the 4-letter code.
-3. Press **Start** (or Enter). One pilot is enough; more can join or leave mid-game and the difficulty follows the room.
+1. Open aileron.app.space on the laptop connected to the projector and click **Host a game**.
+2. Everyone scans the QR code, or goes to aileron.app.space/r and types the 4-letter code.
+3. Press **Start**. One player is enough. People can join or leave mid-game, and the difficulty adjusts.
 
-Projector keys: `Enter` start, `F` fullscreen, `M` sound, `N` skip time of day, `C` calm mode (no shaking).
-Extra screen: open `/r/CODE?watch` to mirror a running game.
-On the phone: **Recenter** if it drifts, **Mode** switches portrait/landscape, the flip buttons invert an axis. iPhones ask for motion permission when you tap Join.
+On the big screen: `Enter` starts, `F` goes fullscreen, `M` toggles sound, `C` turns off screen shake.
+Want a second screen? Open `/r/CODE?watch`.
+On the phone: tap **Recenter** if your plane drifts. iPhones ask for motion access when you tap Join.
 
 ## Venues
 
-A venue is a permanent page for a recurring group, like `aileron.app.space/v/friday-meetup`. Sign in, open **My venues** (`/me`), and claim an address (lowercase letters, numbers and hyphens, 3 to 32 characters, up to 5 per person). Anyone can press **Host a game here**; every game hosted from the venue lands in its hall of fame (this week and all time), which also shows on the host screen when the game ends.
+A venue is a permanent page for a group that meets regularly, like `aileron.app.space/v/friday-meetup`. Sign in, go to **My venues**, and pick an address (up to 5 per person). Anyone can host a game from the venue page, and each game's score goes on that venue's leaderboard.
 
-## Architecture
+## How it works
 
-1. One Cloudflare Worker (Hono) on DeepSpace; `worker.ts` wires routes and Durable Objects.
-2. `GameRoom` (`src/server/game-room.ts`) extends the SDK's `BaseRoom`: one Durable Object per room code, reached at `/ws/game/:code` through the scaffold's `wsRoute` (anonymous phones get `anon-<uuid>`).
-3. The 30 Hz simulation (`shared/sim.js`) runs inside the DO with a catch-up timer; the screen gets every snapshot, phones get a small HUD at ~4 Hz.
-4. The loop stops when nobody is flying, so an idle projector lets the DO hibernate; seats are rebuilt from socket attachments on wake.
-5. Phones keep a client-generated reconnect token: a dropped phone keeps its seat for 20 s, the host screen for 2 min.
-6. The host screen and phone pad are static pages (`public/screen.html`, `public/pad.html`, three.js) served at `/host` and `/r/:code`.
-7. React (generouted) pages: the static landing `/`, the venue page `/v/:slug` and the signed-in dashboard `/me`.
-8. Records: `venues` (created only by the `createVenue` server action; owners rename/delete) and `runs` (written only by the GameRoom, as the app, when a game ends).
-9. `/v/:slug` reads runs live with `useQuery`; the static host screen reads `/api/venues/:slug/hall`.
-10. Nothing else is persisted: room state lives in DO memory.
+- Each room is a Durable Object (`src/server/game-room.ts`) that runs the game 30 times a second and streams it to the screen.
+- Phones connect anonymously over a WebSocket. A dropped phone keeps its seat for 20 seconds.
+- The game stops ticking when nobody is playing, so an idle screen costs nothing.
+- The big screen and the phone controller are plain HTML with three.js (`public/`). The landing page, venue pages and dashboard are React.
+- Only two things are saved: venues, and the final score of each game. Players can't write scores; the room saves them when the game ends.
+- Difficulty settings live in `TUNE` in `shared/sim.js`.
 
 ## Capacity
 
-Local baseline (`npm run load`, `deepspace dev` on one laptop, one screen plus N phones sending tilt at 20 Hz). These show the loop's own cost, not production latency:
+Tested on the live site with one screen and fake phones, each sending tilt 20 times a second:
 
-| Phones | Snapshots/s | Snapshot gap p99 | DO tick p99 | Inputs/s | Screen KB/s | workerd CPU |
-|---|---|---|---|---|---|---|
-| 1 | 29.3 | 41 ms | 40 ms | 21 | 12 | 4% |
-| 8 | 27.5 | 46 ms | 45 ms | 165 | 34 | 14% |
-| 16 | 27.4 | 44 ms | 45 ms | 328 | 58 | 15% |
-| 24 | 26.9 | 46 ms | 47 ms | 493 | 84 | 19% |
+| Phones | Updates per second | Late updates (over 50 ms) | Data to the screen |
+|---|---|---|---|
+| 1 | 30 | 1.5% | 10 KB/s |
+| 8 | 30 | 1.4% | 36 KB/s |
+| 16 | 30 | 1.8% | 66 KB/s |
+| 24 | 30 | 5.4% | 97 KB/s |
 
-Rooms cap at 24 pilots (`MAX_PLAYERS` in `src/game/constants.ts`); a 25th phone is refused. The sim always advances 30 steps a second: when a timer fires late, the next frame carries two steps, which is why snapshots arrive slightly under 30/s. Real phones send input only on change plus a 1 s heartbeat, so live traffic is lower than this worst case.
-
-## Tuning
-
-- Difficulty: `TUNE` in `shared/sim.js` (hull, enemy count, enemy speed and wave gap per pilot connected). Unpaired pilots (solo, or the odd one out) always get the fast fire rate.
-- Smoothness: the screen interpolates `delay` ms in the past, adapting between 45 and 160 ms to how unevenly snapshots arrive.
+The server kept a steady 30 updates a second at every size. The few late updates came from network jitter, and the screen smooths those out. Rooms are capped at 24 players.
 
 ## Develop
 
 ```sh
-npx deepspace dev start      # http://localhost:5173
-npm test                     # sim, scaling, pad, screen; GameRoom protocol tests when dev is running
-npm run test:app             # Playwright: smoke, API, venues (needs 2 test accounts)
-npm run load                 # load test against the dev server
-npx tsc --noEmit && npm run lint
+npx deepspace dev start    # run locally at localhost:5173
+npm test                   # game and controller tests (room tests too, if the dev server is running)
+npm run test:app           # browser tests, needs 2 test accounts
+npm run load               # load test
 ```

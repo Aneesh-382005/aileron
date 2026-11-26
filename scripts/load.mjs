@@ -2,7 +2,7 @@
 // Load test: one host screen plus N fake phones against a GameRoom.
 //   node scripts/load.mjs http://localhost:5173 1,8,16,24 30
 // Phones send tilt at 20 Hz (worst case) and toggle fire. Against a deployed URL the snapshot gaps include real
-// network jitter and the DO tick stats come from production; workerd CPU is only read for localhost.
+// network jitter; workerd CPU is only read for localhost.
 import { readdirSync, readFileSync } from 'node:fs'
 
 const base = (process.argv[2] || 'http://localhost:5173').replace(/\/$/, '')
@@ -45,7 +45,7 @@ async function run(n) {
   }
   const connectMs = performance.now() - c0
   const snaps = [], screenBytes = { n: 0 }, restarts = { n: 0 }
-  let stats = null, lastState = 'lobby', maxShips = 0, maxBullets = 0
+  let lastState = 'lobby', maxShips = 0, maxBullets = 0
   screen.onmessage = (e) => {
     screenBytes.n += e.data.length
     const m = JSON.parse(e.data)
@@ -54,7 +54,7 @@ async function run(n) {
       maxShips = Math.max(maxShips, m.sh.length); maxBullets = Math.max(maxBullets, m.bu.length)
       if (m.s === 'over' && lastState === 'play') { restarts.n++; screen.send('{"t":"start"}') }
       lastState = m.s
-    } else if (m.t === 'stats') stats = m
+    }
   }
 
   const phones = await Promise.all(Array.from({ length: n }, async (_, i) => {
@@ -80,7 +80,6 @@ async function run(n) {
   const cpu0 = local ? workerdCpu() : 0, t0 = performance.now()
   await sleep(secs * 1000)
   const elapsed = (performance.now() - t0) / 1000, cpu = local ? workerdCpu() - cpu0 : 0
-  screen.send('{"t":"stats"}'); await sleep(300)
   timers.forEach(clearInterval)
 
   const gaps = snaps.slice(1).map((t, i) => t - snaps[i])
@@ -89,7 +88,6 @@ async function run(n) {
     snapHz: +(snaps.length / elapsed).toFixed(1),
     gapP50: +pct(gaps, 0.5).toFixed(1), gapP95: +pct(gaps, 0.95).toFixed(1), gapP99: +pct(gaps, 0.99).toFixed(1), gapMax: +Math.max(0, ...gaps).toFixed(1),
     over50ms: gaps.filter((g) => g > 50).length,
-    doTickP50: stats?.p50, doTickP99: stats?.p99, doTickMax: stats?.max,
     inMsgPerSec: Math.round(phones.reduce((s, p) => s + p.sent, 0) / elapsed),
     outMsgPerSec: Math.round((snaps.length + phones.reduce((s, p) => s + p.hud, 0)) / elapsed),
     screenKBps: +(screenBytes.n / 1024 / elapsed).toFixed(1),
