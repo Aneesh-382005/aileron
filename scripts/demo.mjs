@@ -10,6 +10,7 @@ const VENUE = process.argv[2], OUT = 'demo', RAW = `${OUT}/raw`, W = 1920, H = 1
 if (!VENUE || VENUE.startsWith('-')) throw new Error('usage: node scripts/demo.mjs <venue-slug> [--edit]')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const clamp = (v) => Math.max(-1, Math.min(1, v))
+const TURN = [22, 0.55], CLIMB = [18, 0.8]                 // [degrees, seconds per radian] for the phone's wheel turn and pitch
 
 // A visible cursor, since synthetic mouse moves don't move the real one.
 const CURSOR = `addEventListener('DOMContentLoaded', () => {
@@ -21,11 +22,11 @@ const CURSOR = `addEventListener('DOMContentLoaded', () => {
   addEventListener('mouseup', () => { c.style.transform = '' }, true)
 })`
 
-// The phone is held sideways like a wheel: still until window.__fly, then it turns 20 deg either way and gently climbs and dives.
+// The phone is held sideways like a wheel: still until window.__fly, then it turns and climbs and dives on two rhythms.
 const TILT = `localStorage.setItem('ail.land', '1')
 setInterval(() => {
   const D = Math.PI / 180, s = window.__fly ? (performance.now() - window.__fly) / 1000 : 0
-  const w = 20 * D * Math.sin(s / 1.2), p = (7 * Math.sin(s / 1.7) - 25) * D
+  const w = ${TURN[0]} * D * Math.sin(s / ${TURN[1]}), p = (${CLIMB[0]} * Math.sin(s / ${CLIMB[1]}) - 25) * D
   const sx = -Math.sin(w) * Math.cos(p), sy = Math.cos(w) * Math.cos(p)
   dispatchEvent(Object.assign(new Event('deviceorientation'), { alpha: 0, beta: Math.asin(-sx) / D, gamma: Math.atan2(-sy, Math.sin(p)) / D }))
 }, 50)`
@@ -125,9 +126,29 @@ if (!process.argv.includes('--edit')) {
 }
 
 const m = JSON.parse(readFileSync(`${RAW}/marks.json`, 'utf8'))
-// Playwright's video starts a moment after the page does; line cuts up using each file's real length.
+// Playwright's videos start a moment after their pages do. The host's offset comes from its length; the phone's from
+// matching the steering dot in its footage against the tilt it was fed, which pins it to the frame.
 const length = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]))
-const hostShift = Math.max(0, m.end - length(`${RAW}/host.webm`)), phoneShift = Math.max(0, m.phoneEnd - m.phoneStart - length(`${RAW}/phone.webm`))
+const hostShift = Math.max(0, m.end - length(`${RAW}/host.webm`))
+const steer = (t) => { const w = TURN[0] * Math.sin(Math.max(0, t - m.fly) / TURN[1]); return Math.sign(w) * Math.min(1, Math.max(0, (Math.abs(w) - 3) / 21)) ** 1.4 }
+const dots = execFileSync('ffmpeg', ['-v', 'error', '-ss', String(m.fly + 1 - m.phoneStart), '-t', '20', '-i', `${RAW}/phone.webm`,
+  '-vf', 'fps=25,crop=354:300:0:70,scale=88:75', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { maxBuffer: 1 << 27 })
+const dot = []
+for (let f = 0; f < dots.length / (88 * 75 * 3); f++) {
+  let sum = 0, n = 0
+  for (let i = 0; i < 88 * 75; i++) {
+    const o = (f * 88 * 75 + i) * 3
+    if (dots[o] > 200 && dots[o + 1] > 170 && dots[o + 2] < 120) { sum += i % 88; n++ }
+  }
+  if (n > 4) dot.push([m.fly + 1 + f / 25, sum / n])
+}
+const corr = (d) => {
+  const xs = dot.map(([, x]) => x), ys = dot.map(([t]) => steer(t + d)), mean = (a) => a.reduce((p, q) => p + q) / a.length
+  const mx = mean(xs), my = mean(ys)
+  return xs.reduce((p, x, i) => p + (x - mx) * (ys[i] - my), 0) / Math.sqrt(xs.reduce((p, x) => p + (x - mx) ** 2, 0) * ys.reduce((p, y) => p + (y - my) ** 2, 0))
+}
+const phoneShift = Array.from({ length: 151 }, (_, i) => -1.5 + i * 0.02).reduce((best, d) => (corr(d) > corr(best) ? d : best))
+console.log(`phone footage offset ${phoneShift.toFixed(2)}s (match ${corr(phoneShift).toFixed(3)})`)
 const title = (big, small) => `<div style="height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 170px">
   <div style="font:700 38px 'Space Grotesk';letter-spacing:.35em;color:#ffb020">AILERON</div>
   <div style="font:700 116px/1.05 'Space Grotesk';margin-top:26px;max-width:1400px">${big}</div>
@@ -172,10 +193,10 @@ for (const [k, a, b] of segs) {
   const inputs = ['-i', `${RAW}/host.webm`, '-i', `${RAW}/cap-${k}.png`]
   let graph = `[0:v]trim=start=${Math.max(0, a - hostShift).toFixed(2)}:duration=${dur},fps=25,setpts=PTS-STARTPTS[v];[v][1:v]overlay=0:0[out]`
   if (a >= m.phoneStart - 0.5 && b <= m.over + 8) {
-    // The phone floats in 3D at the right, turned toward the sky, and moves with the same tilt TILT feeds it:
+    // The phone floats in 3D at the right, turned toward the sky, and moves with the TURN and CLIMB that TILT feeds it:
     // wheel turn in ld(0), pitch in ld(1), a fixed yaw in ld(2), projected with a 1400 px focal length.
     const s = `(in/25+${(a - m.fly).toFixed(2)})`, on = `gte(${s},0)`
-    const pre = `st(0,${on}*20*PI/180*sin(${s}/1.2));st(1,-0.2-${on}*7*PI/180*sin(${s}/1.7));st(2,-0.35)`
+    const pre = `st(0,${on}*${TURN[0]}*PI/180*sin(${s}/${TURN[1]}));st(1,-0.2-${on}*${CLIMB[0]}*PI/180*sin(${s}/${CLIMB[1]}));st(2,-0.35)`
     const corner = (X, Y) => {
       const xy = `${pre};st(3,${X}*cos(ld(0))-(${Y})*sin(ld(0)));st(4,${X}*sin(ld(0))+(${Y})*cos(ld(0)));st(5,1400/(1400-ld(3)*sin(ld(2))+ld(4)*sin(ld(1))*cos(ld(2))))`
       return [`'${xy};450+(ld(3)*cos(ld(2))+ld(4)*sin(ld(1))*sin(ld(2)))*ld(5)'`, `'${xy};450+ld(4)*cos(ld(1))*ld(5)'`]
