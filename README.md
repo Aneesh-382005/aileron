@@ -11,12 +11,12 @@ A co-op flying game for meetups, classrooms and hackathon kickoffs. One big scre
 3. Press **Start**. One player is enough. People can join or leave mid-game, and the difficulty adjusts.
 
 On the big screen: `Enter` starts, `F` goes fullscreen, `M` toggles sound, `C` turns off screen shake.
-Want a second screen? Open `/r/CODE?watch`.
+Want a second screen? Open `/r/CODE/watch`.
 On the phone: tap **Recenter** if your plane drifts. iPhones ask for motion access when you tap Join.
 
 ## Venues
 
-A venue is a permanent page for a group that meets regularly, like `aileron.app.space/v/friday-meetup`. Sign in, go to **My venues**, and pick an address (up to 5 per person). Anyone can host a game from the venue page, and each game's score goes on that venue's leaderboard.
+A venue is a permanent page for a group that meets regularly, like `aileron.app.space/v/friday-meetup`. Sign in, go to **My venues**, and pick an address (up to 5 per person). Anyone can host a game from the venue page (`/v/friday-meetup/host`), and each game's score goes on that venue's leaderboard.
 
 ## How it works
 

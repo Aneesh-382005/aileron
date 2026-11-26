@@ -40,5 +40,5 @@ test('venues: create from /me, unique slugs, reserved names, five per user, publ
 
   await b.page.goto(`/v/${slug}`)
   await expect(b.page.getByRole('heading', { name: 'E2E Meetup' })).toBeVisible({ timeout: 15_000 })
-  await expect(b.page.getByRole('link', { name: 'Host a game here' })).toHaveAttribute('href', `/host?venue=${slug}`)
+  await expect(b.page.getByRole('link', { name: 'Host a game here' })).toHaveAttribute('href', `/v/${slug}/host`)
 })

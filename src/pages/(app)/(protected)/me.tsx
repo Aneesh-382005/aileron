@@ -58,7 +58,7 @@ export default function MyVenues() {
               onClick={() => navigator.clipboard.writeText(`${location.origin}/v/${r.data.slug}`).then(() => success('Link copied'))}><Copy /></Button>
             <Button variant="ghost" size="icon" aria-label="Rename" onClick={() => setRenaming({ id: r.recordId, title: r.data.title })}><Pencil /></Button>
             <Button variant="ghost" size="icon" aria-label="Delete" onClick={() => setDeleting({ id: r.recordId, title: r.data.title })}><Trash2 /></Button>
-            <a href={`/host?venue=${r.data.slug}`} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Host a game</a>
+            <a href={`/v/${r.data.slug}/host`} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Host a game</a>
           </div>
         )) : (
           <EmptyState icon={<MapPin />} title="No venues yet" description="Claim an address for your meetup, class or office below." />

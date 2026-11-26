@@ -16,6 +16,8 @@ async function page(c: Context<AppContext>, name: 'screen' | 'pad'): Promise<Res
 export function registerGameRoutes(app: Hono<AppContext>): void {
   app.get('/healthz', (c) => c.text('ok'))
   app.get('/host', (c) => page(c, 'screen'))
+  app.get('/v/:slug/host', (c) => (isVenueSlug(c.req.param('slug')) ? page(c, 'screen') : c.notFound()))
+  app.get('/r/:code/watch', (c) => page(c, 'screen'))
   app.get('/r/:code', (c) => {
     const raw = c.req.param('code'), code = raw.toUpperCase()
     if (raw !== code && isRoomCode(code)) {

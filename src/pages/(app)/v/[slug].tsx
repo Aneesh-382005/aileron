@@ -29,7 +29,7 @@ export default function VenuePage() {
       <p className="text-sm uppercase tracking-[0.2em] text-primary">Venue</p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-6">
         <h1 className="font-display text-5xl font-bold tracking-tight">{venue.title}</h1>
-        <a href={`/host?venue=${slug}`} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
+        <a href={`/v/${slug}/host`} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
           Host a game here
         </a>
       </div>

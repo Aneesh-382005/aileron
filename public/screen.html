@@ -145,8 +145,9 @@ function syncMeshes(map, list, make, place) {
 }
 
 /* ---------- state from the server ---------- */
-const params = new URLSearchParams(location.search), venue = params.get("venue") || "";
-const watch = params.has("watch") ? (location.pathname.split("/")[2] || "").toUpperCase() : "";   // /r/CODE?watch: an extra screen for the same game
+const params = new URLSearchParams(location.search), path = location.pathname;
+const venue = params.get("venue") || path.match(/^\/v\/([a-z0-9-]+)\/host/)?.[1] || "";                     // /v/SLUG/host
+const watch = params.has("watch") || path.endsWith("/watch") ? (path.split("/")[2] || "").toUpperCase() : "";   // /r/CODE/watch: an extra screen
 const newCode = () => Array.from({ length: 4 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join("");
 const ss = (k, v) => { try { return v == null ? sessionStorage.getItem(k) : sessionStorage.setItem(k, v); } catch {} };
 let ws, code = watch || ss("ail.code" + venue) || newCode(), hostToken = ss("ail.host") || Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -181,7 +182,7 @@ function drawCard() {
     const hint = players === 1 ? "Flying solo, no wingmate needed. More pilots can join any time." : "Scan to join. Pilots pair up as wingmates: fly close to link up for double points.";
     $("card").innerHTML = `<h1>AILERON</h1>${where}<div>${hint}</div>${qr}<div id="code">${code}</div><div>${join()}</div>` +
       `<div id="crews">${list || "<i>waiting for pilots...</i>"}</div>` +
-      (watch ? "<div>Mirror screen: the host starts the game</div>" : `<button id="start" ${players ? "" : "disabled"}>${players ? `Start (${players} of ${max})` : "Waiting for pilots"}</button><div id="more">Second screen? open ${join()}?watch</div>`);
+      (watch ? "<div>Mirror screen: the host starts the game</div>" : `<button id="start" ${players ? "" : "disabled"}>${players ? `Start (${players} of ${max})` : "Waiting for pilots"}</button><div id="more">Second screen? open ${join()}/watch</div>`);
   }
   if ($("start")) $("start").onclick = start;
 }
@@ -240,15 +241,11 @@ addEventListener("keydown", (e) => {
   else if (e.key === "m" || e.key === "M") { unlock(); audio.on = !audio.on; audio.master.gain.value = audio.on ? 1 : 0; }
 });
 
-/* ---------- sound: synthesized effects, plus public/music.mp3 if present ---------- */
+/* ---------- sound: synthesized effects ---------- */
 const audio = { ctx: null, master: null, on: true, last: 0 };
 function unlock() {
   if (audio.ctx) return;
   audio.ctx = new AudioContext(); audio.master = audio.ctx.createGain(); audio.master.connect(audio.ctx.destination);
-  fetch("/music.mp3").then((r) => r.ok ? r.arrayBuffer() : Promise.reject()).then((b) => audio.ctx.decodeAudioData(b)).then((buffer) => {
-    const src = audio.ctx.createBufferSource(), g = audio.ctx.createGain(); g.gain.value = 0.5;
-    src.buffer = buffer; src.loop = true; src.connect(g).connect(audio.master); src.start();
-  }).catch(() => {});
 }
 function sfx(kind) {
   if (!audio.ctx || !audio.on) return;
